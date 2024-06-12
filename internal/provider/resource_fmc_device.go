@@ -178,9 +178,9 @@ func (r *DeviceResource) Create(ctx context.Context, req resource.CreateRequest,
 	taskID := res.Get("metadata.task.id").String()
 	tflog.Debug(ctx, fmt.Sprintf("%s: Async task initiated successfully", taskID))
 
-	const atom time.Duration = 5 * time.Second
+	end := time.Now().Add(5 * time.Minute)
 	// We need device's UUID, but it only shows after the task succeeds. Poll the task.
-	for i := time.Duration(0); i < 5*time.Minute; i += atom {
+	for time.Until(end) > 0 {
 		task, err := r.client.Get("/api/fmc_config/v1/domain/{DOMAIN_UUID}/job/taskstatuses/"+url.QueryEscape(taskID), reqMods...)
 		if err != nil {
 			resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Failed to read object (GET), got error: %s, %s", err, task.String()))
@@ -194,7 +194,7 @@ func (r *DeviceResource) Create(ctx context.Context, req resource.CreateRequest,
 		if stat != "PENDING" && stat != "RUNNING" {
 			break
 		}
-		time.Sleep(atom)
+		time.Sleep(5 * time.Second)
 	}
 
 	bulk, err := r.client.Get(plan.getPath() + "?filter=name:" + url.QueryEscape(plan.Name.ValueString()))
@@ -222,7 +222,8 @@ func (r *DeviceResource) Create(ctx context.Context, req resource.CreateRequest,
 	}
 
 	// Let long-running deployment finish because it enables DELETE verb. Our tests really expect that.
-	for i := time.Duration(0); i < 10*time.Minute; i += atom {
+	end = time.Now().Add(10 * time.Minute)
+	for time.Until(end) > 0 {
 		res, err = r.client.Get(plan.getPath()+"/"+url.QueryEscape(plan.Id.ValueString()), reqMods...)
 		if err != nil {
 			resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Failed to retrieve object (GET), got error: %s, %s", err, res.String()))
@@ -231,7 +232,7 @@ func (r *DeviceResource) Create(ctx context.Context, req resource.CreateRequest,
 		if res.Get("accessPolicy.id").Exists() {
 			break // access policy fully deployed
 		}
-		time.Sleep(atom)
+		time.Sleep(5 * time.Second)
 	}
 
 	tflog.Debug(ctx, fmt.Sprintf("%s: Created successfully", plan.Id.ValueString()))
@@ -342,8 +343,9 @@ func (r *DeviceResource) Update(ctx context.Context, req resource.UpdateRequest,
 
 var policyMu sync.Mutex
 
-// updatePolicy updates policy-to-device assignment of one specific device (UUID) and of one specific policy type
-// (policyPath points to a different attribute for Access Policy, NAT Policy, Platform Settings Policy, etc.).
+// updatePolicy calls API to update policy-to-device assignment of one specific device UUID.
+// It deals with one policy type, given the policyPath which points to appropriate attribute for Access Policy, NAT
+// Policy, Platform Settings Policy, etc.
 func (r *DeviceResource) updatePolicy(ctx context.Context, device basetypes.StringValue, policyPath path.Path, plan tfsdk.Plan, state tfsdk.State, reqMods ...func(*fmc.Req)) diag.Diagnostics {
 	devId := device.ValueString()
 
