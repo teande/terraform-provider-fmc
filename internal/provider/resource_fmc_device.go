@@ -459,6 +459,11 @@ func (r *DeviceResource) Delete(ctx context.Context, req resource.DeleteRequest,
 		reqMods = append(reqMods, fmc.DomainName(state.Domain.ValueString()))
 	}
 
+	// Deleting a device implicitly mutates also policyassignments.items.*.targets.
+	// The updatePolicy is vulnerable during that mutation, protect it:
+	policyMu.Lock()
+	defer policyMu.Unlock()
+
 	tflog.Debug(ctx, fmt.Sprintf("%s: Beginning Delete", state.Id.ValueString()))
 	res, err := r.client.Delete(state.getPath()+"/"+url.QueryEscape(state.Id.ValueString()), reqMods...)
 	if err != nil {
