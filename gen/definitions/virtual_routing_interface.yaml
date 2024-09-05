@@ -1,0 +1,64 @@
+---
+name: Virtual Routing Interface
+rest_endpoint: /api/fmc_config/v1/domain/{DOMAIN_UUID}/devices/devicerecords/%v/routing/virtualrouters
+data_source_name_query: true
+doc_category: Device
+test_tags: [TF_VAR_device_id, TF_VAR_outside_int_id]
+attributes:
+  - model_name: device_id
+    type: String
+    reference: true
+    description: >-
+      ID of the device.
+    example: 76d24097-41c4-4558-a4d0-a8c07ac08470
+    test_value: var.device_id
+
+  - model_name: name
+    type: String
+    description: >-
+      Name of the policy. Names for built-in policies are, for example, 'Balanced Security and Connectivity'
+      or 'Security Over Connectivity'.
+    mandatory: true
+    example: vrf_1
+
+  - model_name: description
+    type: String
+    description: Optional description of the policy.
+    example: "My virtual router"
+
+  - model_name: interfaces
+    type: List
+    description: >-
+      List of interfaces
+    attributes:
+      - model_name: id
+        type: String
+        manadatory: true
+        id: true
+        description: >-
+          ID of the policy.
+        example: 76d24097-41c4-4558-a4d0-a8c07ac08470
+        test_value: var.outside_int_id
+
+      - model_name: name
+        type: String
+        description: >-
+          Name of the Interface
+        example: TenGigabitEthernet0/1
+        test_value: data.fmc_device_physical_interface.example.name
+
+      - model_name: ifname
+        type: String
+        description: >-
+          Logical Name of the Interface
+        example: Outside
+        test_value: data.fmc_device_physical_interface.example.logical_name
+
+test_prerequisites: |-
+  variable device_id {}
+  variable outside_int_id {}
+
+  data "fmc_device_physical_interface" "example" {
+    id        = var.outside_int_id 
+    device_id = var.device_id
+  }
