@@ -1,0 +1,193 @@
+---
+name: Policy Based Routing
+rest_endpoint: /api/fmc_config/v1/domain/{DOMAIN_UUID}/devices/devicerecords/%v/routing/policybasedroutes
+data_source_name_query: true
+doc_category: Devices
+test_tags:
+  - TF_VAR_device_id
+  - TF_VAR_outside_int_id
+  - TF_VAR_outside2_int_id
+  - TF_VAR_inside_int_id
+attributes:
+  - tf_name: device_id
+    type: String
+    reference: true
+    description: UUID of the parent device (fmc_device.example.id).
+    example: 76d24097-41c4-4558-a4d0-a8c07ac08470
+    test_value: var.device_id
+
+  - model_name: name
+    type: String
+    description: >-
+      Name of the resource.
+    example: PBR-req-test
+    exclude_test: true
+
+  - model_name: description
+    type: String
+    description: Description of the route
+    example: By provider
+    exclude_test: true
+
+  - model_name: ingressInterfaces
+    tf_name: ingress_interfaces
+    mandatory: true
+    type: List
+    description: >-
+      List of ingress interfaces
+    attributes:
+      - model_name: id
+        type: String
+        mandatory: true
+        id: true
+        description: >-
+          The id of the ingress interface
+        example: 76d24097-41c4-4558-a4d0-a8c07ac08470
+        test_value: var.inside_int_id
+
+      - model_name: ifname
+        type: String
+        description: >-
+          Logical name of the ingress interface
+        example: fmc_device_physical_interface._inside_test.ifname
+        exclude_example: true
+        exclude_test: true
+
+      - model_name: name
+        type: String
+        description: >-
+          The name of the ingress interface
+        example: fmc_device_physical_interface._inside_test.name
+        exclude_example: true
+        exclude_test: true
+
+  - model_name: forwardingActions
+    tf_name: forwarding_actions
+    type: List
+    # ordered_list: true
+    description: >-
+      List of forwarding actions
+    mandatory: true
+    attributes:
+      - model_name: forwardingActionType
+        type: String
+        mandatory: true
+        description: >-
+          Type of the forwarding action
+        enum_values:
+          - SET_EGRESS_INTF_BY_ORDER
+          - SET_EGRESS_INTF_BY_PRIORITY
+          - SET_NEXT_HOP
+          - SET_EGRESS_INTF_BY_MOS
+          - SET_EGRESS_INTF_BY_JITTER
+          - SET_EGRESS_INTF_BY_RTT
+          - SET_EGRESS_INTF_BY_LOST_PKTS
+        example: SET_EGRESS_INTF_BY_PRIORITY
+
+      ## Match Criteria definition
+      - model_name: name
+        tf_name: match_criteria_name
+        type: String
+        data_path: ["matchCriteria"]
+        description: >-
+          The name of the match criteria
+        example: my-acl
+        test_value: fmc_extended_acl._acl_test.name
+
+      - model_name: id
+        tf_name: match_criteria_id
+        mandatory: true
+        id: true
+        type: String
+        data_path: ["matchCriteria"]
+        description: >-
+          The id of the match criteria
+        example: 0AFFE3D6-879D-0ed3-0000-004295026024
+        test_value: fmc_extended_acl._acl_test.id
+
+      ## Egress Interfaces definition
+      - model_name: egressInterfaces
+        tf_name: egress_interfaces
+        mandatory: true
+        type: List
+        description: >-
+          List of egress interfaces
+        attributes:
+          - model_name: id
+            type: String
+            mandatory: true
+            id: true
+            description: >-
+              The id of the egress interface
+            # example: 76d24097-41c4-4558-a4d0-a8c07ac08470
+            test_value: var.outside_int_id
+
+          - model_name: ifname
+            type: String
+            description: >-
+              Logical name of the interface
+            exclude_example: true
+            exclude_test: true
+
+          - model_name: name
+            type: String
+            description: >-
+              The name of the egress interface
+            exclude_example: true
+            exclude_test: true
+
+      ## Default Interface
+      - model_name: defaultInterface
+        tf_name: default_interface
+        type: Bool
+        description: >-
+          The logical name of the default interface
+        example: true
+        exclude_test: true
+
+test_prerequisites: |-
+  variable "device_id" { default = null } // tests will set $TF_VAR_device_id
+  variable "outside_int_id" { default = null } // tests will set $TF_VAR_outside_int_id
+  variable "outside2_int_id" { default = null } // tests will set $TF_VAR_outside2_int_id
+  variable "inside_int_id" { default = null } // tests will set $TF_VAR_inside_int_id
+
+  resource "fmc_port" "test" {
+    name = "myport2"
+    protocol = "TCP"
+    port = "65000"
+  }
+
+  resource "fmc_extended_acl" "_acl_test" {
+    name        = "extended_acl_1"
+    description = "My Extended Access Control List"
+    entries = [
+    {
+        action               = "DENY"
+        log_level            = "WARNING"
+        logging              = "PER_ACCESS_LIST_ENTRY"
+        log_interval_seconds = 120
+        source_network_literals = [
+          {
+            value = "10.1.1.0/24"
+            type  = "Network"
+          }
+        ]
+        destination_network_literals = [
+          {
+            value = "10.2.2.2"
+            type  = "Host"
+          }
+        ]
+        source_port_objects = [
+          {
+            id = fmc_port.test.id
+          }
+        ]
+        destination_port_objects = [
+          {
+            id = fmc_port.test.id
+          }
+        ]
+      }
+    ]
+  }
